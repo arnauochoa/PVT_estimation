@@ -1,4 +1,4 @@
-function    [PVT, A, tcorr, Pcorr]  =   PVT_recLS(pr, svn, TOW, eph, iono, Nit, PVT0)
+function    [PVT, A, tcorr, Pcorr]  =   PVT_recLS(pr, svn, TOW, eph, iono, Nit, PVT0, enab_corr)
 % PVT_recLS:    Computation of the receiver position at time TOW from  
 %               pseudoranges (pr) and ephemerides information (eph). 
 %               Implementation using the iterative Least-Squares principle 
@@ -68,7 +68,11 @@ function    [PVT, A, tcorr, Pcorr]  =   PVT_recLS(pr, svn, TOW, eph, iono, Nit, 
             % TODO: falta añadir efecto relativista
 
             %--     Get corrected pseudorange (rho_c = rho - cor)
-            corr          =   Pcorr + c * tcorr(sat);            %   Total correction factor in meters (TBD)
+            if enab_corr         % If corrections are enabled
+                corr          =   Pcorr + c * tcorr(sat);            %   Total correction factor in meters (TBD)
+            else
+                corr = 0;
+            end
             pr_c          =   pr(sat) + corr;   %   Corrected pseudorange
     
             if (~isnan(pr_c))    % Fill as long as there is C1 measurement,
@@ -88,7 +92,7 @@ function    [PVT, A, tcorr, Pcorr]  =   PVT_recLS(pr, svn, TOW, eph, iono, Nit, 
         %--     Get the LS estimate of PVT at iteration iter
         d               =   pinv(A) * p;         % PVT update ("correction") !!!
         PVT(1:3)        =   PVT(1:3) + d(1:3)';  % Update the PVT coords.
-        PVT(4)          =   TOW + d(4)/c;        % Update receiver clock offset
+        PVT(4)          =   d(4);        % Update receiver clock offset
         %
     end
     tcorr = mean(tcorr);

@@ -15,6 +15,8 @@ addpath 'Observations';
 %-  Setting Parameters
 %--     Satellite constellations to be used for the PVT computation
 const       =   ["GPS", "GAL"];
+%--     Enable/disable corrections
+enab_corr   =   true;
 %--     Weight given to the PVT solution of every constellation
 weight      =   [0.5, 0.5];
 %--     Number of constellations used
@@ -24,7 +26,7 @@ NavFile     =   ["RINEX/BCLN00ESP_R_20182870000_01D_GN.rnx", "RINEX/BCLN00ESP_R_
 %--     Observation RINEX file
 ObsFile     =   "RINEX/BCLN00ESP_R_20182870000_01D_30S_MO.rnx";
 %--     Number of epochs to be analyzed (max. 2880)
-Nepoch      =   200;                
+Nepoch      =   2880;                
 %--     Number of unknowns of the PVT solution
 Nsol        =   4;                  
 %--     Number of iterations used to obtain the PVT solution
@@ -33,6 +35,8 @@ Nit         =   8;
 PVTr        =   [4788065.1430, 167551.1700, 4196354.9920];   %FIXME: add reference time
 %--     Preliminary guess for PVT solution 
 PVT0        =   [0 0 0 0];
+%--     Speed of light (for error calculations)
+c           =   299792458;       %   Speed of light (m/s)
 %--     Number of satellites for every epoch
 Nsat        =   zeros(Nepoch, Nconst);
 %--     Time corrections mean for every epoch
@@ -82,7 +86,8 @@ for con = 1:Nconst
         Nsat(epoch, con) = length(sats);
     
         %--     Compute the PVT solution at the next epoch
-        [PVT(epoch, :, con), A, Tcorr(epoch, con), Pcorr(epoch, con)]  =   PVT_recLS(pr, sats, TOW(epoch), eph{con}, iono{con}, Nit, PVT0);
+        [PVT(epoch, :, con), A, Tcorr(epoch, con), Pcorr(epoch, con)]  = ...  
+            PVT_recLS(pr, sats, TOW(epoch), eph{con}, iono{con}, Nit, PVT0, enab_corr);
 
         G           = inv(A'*A);      % Geometry matrix computation
 
@@ -105,7 +110,7 @@ Nmov            =   5;
 
 pos_mean        =   nanmean(PVTf(:,1:3));
 posllh_mean     =   rad2deg(xyz2llh(pos_mean));
-t_err           =   PVTf(:,4)-TOW;
+t_err           =   PVTf(:,4)/c;
 t_err_mean      =   mean(t_err);
 mu_mov          =   movmean(PVTf(:,1:3),[Nmov-1 0],1);
 spread          =   nanstd(PVTf(:,1:3));
@@ -127,7 +132,7 @@ legend('X error', 'Y error', 'Z error');
 xlabel('Time of the Week (s)');
 ylabel('Error for each coordinate (m)');
 title(sprintf('Evolution of the errors in the different axes (GPS weight = %1.2f, GAL weight = %1.2f)\n', weight(1), weight(2)));
-filename = sprintf('Capt/mult_1/err_XYZ_%u_%u.jpg', 100*weight(1), 100*weight(2));
+filename = sprintf('Capt/mult_1/err_XYZ_%u_%u_%u.jpg', 100*weight(1), 100*weight(2), enab_corr);
 saveas(fig, filename);
 %
 % -- RMS evolution 
@@ -135,15 +140,15 @@ fig = figure('DefaultAxesFontSize', 12); plot(TOW, rms);
 xlabel('Time of the Week (s)');
 ylabel('Root Mean Square error (m)');
 title(sprintf('RMS evolution (GPS weight = %1.2f, GAL weight = %1.2f)\n', weight(1), weight(2)));
-filename = sprintf('Capt/mult_1/rms_%u_%u.jpg', 100*weight(1), 100*weight(2));
+filename = sprintf('Capt/mult_1/rms_%u_%u_%u.jpg', 100*weight(1), 100*weight(2), enab_corr);
 saveas(fig, filename);
 %
 % -- Error in time
 figure('DefaultAxesFontSize', 12); plot(TOW, t_err);
 xlabel('Time of the Week (s)');
 ylabel('Error in time (s)');
-title(sprintf('Evolution of the error in time (GPS weight = %1.2f, GAL weight = %1.2f)\n', weight(1), weight(2)));
-filename = sprintf('Capt/mult_1/terr_%u_%u.jpg', 100*weight(1), 100*weight(2));
+title(sprintf('Evolution of the bias in time (GPS weight = %1.2f, GAL weight = %1.2f)\n', weight(1), weight(2)));
+filename = sprintf('Capt/mult_1/tbias_%u_%u_%u.jpg', 100*weight(1), 100*weight(2), enab_corr);
 saveas(fig, filename);
 %
 % -- # satellites in view
@@ -152,7 +157,7 @@ legend(const);
 xlabel('Time of the Week (s)');
 ylabel('Number of satellites');
 title(sprintf('Evolution of number of satellites in view (GPS weight = %1.2f, GAL weight = %1.2f)\n', weight(1), weight(2)));
-filename = sprintf('Capt/mult_1/nsat_%u_%u.jpg', 100*weight(1), 100*weight(2));
+filename = sprintf('Capt/mult_1/nsat_%u_%u_%u.jpg', 100*weight(1), 100*weight(2), enab_corr);
 saveas(fig, filename);
 %
 % -- RMS evolution & # sal¡tellites
@@ -166,7 +171,7 @@ legend(const);
 ylabel('Number of satellites');
 xlabel('Time of the Week (s)');
 title(sprintf('RMS evolution (GPS weight = %1.2f, GAL weight = %1.2f)\n', weight(1), weight(2)));
-filename = sprintf('Capt/mult_1/rms-nsat_%u_%u.jpg', 100*weight(1), 100*weight(2));
+filename = sprintf('Capt/mult_1/rms-nsat_%u_%u_%u.jpg', 100*weight(1), 100*weight(2), enab_corr);
 saveas(fig, filename);
 %
 % -- GDOP evolution & # sal¡tellites
@@ -181,7 +186,7 @@ legend(const);
 ylabel('Number of satellites');
 xlabel('Time of the Week (s)');
 title(sprintf('GDOP evolution (GPS weight = %1.2f, GAL weight = %1.2f)\n', weight(1), weight(2)));
-filename = sprintf('Capt/mult_1/gdop-nsat_%u_%u.jpg', 100*weight(1), 100*weight(2));
+filename = sprintf('Capt/mult_1/gdop-nsat_%u_%u_%u.jpg', 100*weight(1), 100*weight(2), enab_corr);
 saveas(fig, filename);
 %
 % -- PDOP evolution & # sal¡tellites
@@ -196,7 +201,7 @@ legend(const);
 ylabel('Number of satellites');
 xlabel('Time of the Week (s)');
 title(sprintf('PDOP evolution (GPS weight = %1.2f, GAL weight = %1.2f)\n', weight(1), weight(2)));
-filename = sprintf('Capt/mult_1/pdop-nsat_%u_%u.jpg', 100*weight(1), 100*weight(2));
+filename = sprintf('Capt/mult_1/pdop-nsat_%u_%u._%u.jpg', 100*weight(1), 100*weight(2), enab_corr);
 saveas(fig, filename);
 %
 % -- Time & Propagation corrections evolution
@@ -211,7 +216,7 @@ legend(const);
 ylabel('Propagation corrections (m)');
 xlabel('Time of the Week (s)');
 title(sprintf('Time & Propagation corrections evolution (GPS weight = %1.2f, GAL weight = %1.2f)\n', weight(1), weight(2)));
-filename = sprintf('Capt/mult_1/tcorr-pcorr_%u_%u.jpg', 100*weight(1), 100*weight(2));
+filename = sprintf('Capt/mult_1/tcorr-pcorr_%u_%u_%u.jpg', 100*weight(1), 100*weight(2), enab_corr);
 saveas(fig, filename);
 
 
