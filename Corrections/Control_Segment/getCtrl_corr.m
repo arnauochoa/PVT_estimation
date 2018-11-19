@@ -36,10 +36,10 @@ function    [X, tcorr]   =   getCtrl_corr(eph, svn, TOW, pr)
     %-  Get satellite coordinates (corrected) and velocity
     [X, vel]     =   satpos(tx_GPS, eph(:, col));    
     %
-    %--     Get the satellite rotational clock correction
+    %--     Get the satellite relativistic clock correction
     trel        =   -2 * ( dot(X, vel) / (c^2) ); % IS-GPS-200E, p. 86
     
-    % TODO: Falta a�adir correccion efecto relativista, buscar y si eso a�adir
+    % TODO: Falta a�adir correccion efecto rotacional, buscar y si eso a�adir
     %
     %--     Account for the relativistic effect on the satellite clock bias
     %       and the time of transmission

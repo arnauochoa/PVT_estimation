@@ -63,7 +63,7 @@ PDOP        =   zeros(Nepoch,1);        %   Pdop
 TOW         =   nan(Nepoch,1);          %   Time Of the Week (TOW)
 G           =   cell(1, Nepoch);        %   Array of geometry matrixes as cells
 pos_llh     =   nan(Nepoch, 3);         %   Position in Latitude, Longitude and Height
-mask_sats    =   zeros(Nepoch, 1);       %   Number masked satellites for every epoch
+mask_sats   =   zeros(Nepoch, 1);       %   Number masked satellites for every epoch
 
 
 %-  Sequentially read the Observation file and compute the PVT solution

@@ -1,4 +1,4 @@
-function    [PVT, A, tcorr, Pcorr, X, mask_sats]  =   PVT_recWLS(pr, svn, TOW, eph, iono, Nit, PVT0, enab_corr, threshold)
+function    [PVT, A, tcorr, Pcorr, mask_sats]  =   MC_PVT_recWLS(pr, svn, TOW, eph, iono, Nit, PVT0, const_arr, const, enab_corr, threshold)
 % PVT_recLS:    Computation of the receiver position at time TOW from  
 %               pseudoranges (pr) and ephemerides information (eph). 
 %               Implementation using the iterative Least-Squares principle 
@@ -42,20 +42,30 @@ function    [PVT, A, tcorr, Pcorr, X, mask_sats]  =   PVT_recWLS(pr, svn, TOW, e
     %-  Reject satellites under the threshold elevation angle
     mask    =   [];
     for sat = 1:Nsat
-        [X(:, sat), tcorr(sat)]  =   getCtrl_corr(eph, svn(sat), TOW, pr(sat));
-        alpha   =   elevation_angle(PVT0(1:3), X(:, sat));
+        sat_const = const(const_arr(sat)); % Constellation of sat in format 'GPS', 'GAL'
+        switch sat_const
+            case 'GPS'
+                e = eph{1};
+                i = iono{1};
+            case 'GAL'
+                e = eph{2};
+                i = iono{2};
+        end
+        [X(:, sat), tcorr(sat)]  =   getCtrl_corr(e, svn(sat), TOW, pr(sat));
+        alpha   =   elevation_angle(PVT0(1:3)', X(:, sat));
         if alpha < threshold, mask = [mask, sat]; end
     end
-    mask_sats    =   lenght(mask);
-    pr(mask)    =   [];   % Deletes elemets of pr given by the indexes in mask
-    svn(mask)   =   [];   % Deletes elemets of svn given by the indexes in mask
-    
+    mask_sats   =   length(mask);
+    pr(mask)    =   [];             % Deletes elemets of pr given by the indexes in mask
+    svn(mask)   =   [];             % Deletes elemets of svn given by the indexes in mask
+    Nsat        =   length(pr);     %   Number of satellites update
+     
     %
     %-  Iterative LS to compute the PVT solution
     for iter = 1:Nit
         %-- Get initial position at epoch given by TOW (only 1st iteration)
         if (iter == 1)
-            A       =   zeros(Nsat, 4);
+            A       =   zeros(Nsat, 5);
             p       =   zeros(Nsat, 1);
             PVT     =   PVT0;
         end
@@ -70,15 +80,23 @@ function    [PVT, A, tcorr, Pcorr, X, mask_sats]  =   PVT_recWLS(pr, svn, TOW, e
             %   tcorr: Clock correction (sec.) for the satellite with Id 
             %          given by svn(sat) at time TOW.      
             %
+            sat_const = const(const_arr(sat)); % Constellation of sat in format 'GPS', 'GAL'
+            switch sat_const
+                case 'GPS'
+                    e = eph{1};
+                    i = iono{1};
+                case 'GAL'
+                    e = eph{2};
+                    i = iono{2};
+            end
+
             if (iter == 1)  % Only 1st iteration
-                [X(:, sat), tcorr(sat)]  =   getCtrl_corr(eph, svn(sat), TOW, pr(sat));
-                % pr(sat) = pr(sat) + tcorr * c;  % Clock correction
+                [X(:, sat), tcorr(sat)]  =   getCtrl_corr(e, svn(sat), TOW, pr(sat));
             end
             %
             %--     Get corrections for propagation efects (e.g. iono, tropo,
             %       earth rotation, relativistic effects). Unit meters
-            Pcorr     =   getProp_corr(X(:, sat), PVT0, iono, TOW);  % Iono + Tropo correction
-            % TODO: falta añadir efecto relativista
+            Pcorr     =   getProp_corr(X(:, sat), PVT0, i, TOW);  % Iono + Tropo correction
 
             %--     Get corrected pseudorange (rho_c = rho - cor)
             if enab_corr         % If corrections are enabled
@@ -86,8 +104,7 @@ function    [PVT, A, tcorr, Pcorr, X, mask_sats]  =   PVT_recWLS(pr, svn, TOW, e
             else
                 corr = 0;
             end
-            pr_c          =   pr(sat) + corr;   %   Corrected pseudorange
-            % pr_if = iono_corr(pr_c1, pr_c2);
+            pr_c          =   pr(sat) + corr;           %   Corrected pseudorange
     
             if (~isnan(pr_c))    % Fill as long as there is C1 measurement,
                                  % otherwise discard the measurement.
@@ -99,7 +116,8 @@ function    [PVT, A, tcorr, Pcorr, X, mask_sats]  =   PVT_recWLS(pr, svn, TOW, e
                 ax          =   -(X(1, sat) - PVT(1)) / d0;   % dx/d0
                 ay          =   -(X(2, sat) - PVT(2)) / d0;   % dy/d0
                 az          =   -(X(3, sat) - PVT(3)) / d0;   % dz/d0
-                A(sat, :)   =   [ax ay az 1];
+                if strcmp(sat_const, 'GPS'), A(sat, :) = [ax ay az 1 0]; end     % Matrix for GPS
+                if strcmp(sat_const, 'GAL'), A(sat, :) = [ax ay az 1 1]; end     % Matrix for Galileo
                 % 
             end
         end
@@ -107,6 +125,7 @@ function    [PVT, A, tcorr, Pcorr, X, mask_sats]  =   PVT_recWLS(pr, svn, TOW, e
         d               =   pinv(A) * p;         % PVT update ("correction") !!!
         PVT(1:3)        =   PVT(1:3) + d(1:3)';  % Update the PVT coords.
         PVT(4)          =   d(4);        % Update receiver clock offset
+        PVT(5)          =   d(5);
         %
     end
     tcorr = mean(tcorr);
