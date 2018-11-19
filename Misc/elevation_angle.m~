@@ -1,0 +1,16 @@
+function [alpha] = elevation_angle(r_u, r_s)
+% ELEVATION ANGLE:  Computes the elevation angle of the satellite over
+%                   the horizon with respect to the user's position.
+% Input:
+%           r_u:    Vector defining the user's position.
+%           r_s:    Vector defining the satellite's position.
+% Input:
+%           alpha:  Angle expressed in rad of the satellite over
+%                   the horizon with respect to the user's position.
+
+    d       =   r_u - r_s;      % Vector 'distance' between user and satellite
+    theta   =   acos(dot(r_u, r_s) / (norm(r_u) * norm(r_s)));
+    
+    gamma   =   asin( (norm(r_s) / norm(r_u)) * sin(th
+
+end

@@ -17,6 +17,10 @@ addpath 'Observations';
 const       =   'GPS';
 %--     Enable/disable corrections
 enab_corr   =   true;
+%--     Threshold angle defined in deg
+thres_deg   =   30;
+%--     Threshold angle defined in rad
+threshold   =   deg2rad(thres_deg);
 %--     Navigation RINEX file
 if strcmp(const, 'GPS'), NavFile = 'RINEX/BCLN00ESP_R_20182870000_01D_GN.rnx'; end
 if strcmp(const, 'GAL'), NavFile = 'RINEX/BCLN00ESP_R_20182870000_01D_EN.rnx'; end
@@ -59,6 +63,7 @@ PDOP        =   zeros(Nepoch,1);        %   Pdop
 TOW         =   nan(Nepoch,1);          %   Time Of the Week (TOW)
 G           =   cell(1, Nepoch);        %   Array of geometry matrixes as cells
 pos_llh     =   nan(Nepoch, 3);         %   Position in Latitude, Longitude and Height
+mask_sats    =   zeros(Nepoch, 1);       %   Number masked satellites for every epoch
 
 
 %-  Sequentially read the Observation file and compute the PVT solution
@@ -75,9 +80,15 @@ for epoch = 1:Nepoch
     [pr, TOW(epoch), sats] = getPR_epoch0(fid, year, Obs_types, Nobs, Rin_vers, const);
     Nsat(epoch) = length(sats);
     
-    %--     Compute the PVT solution at the next epoch
-    [PVT(epoch, :), A, Tcorr(epoch), Pcorr(epoch), X]  = ...
-        PVT_recLS(pr, sats, TOW(epoch), eph, iono, Nit, PVT0, enab_corr);
+    if epoch == 1
+        %--     Compute the PVT solution at the next epoch
+        [PVT(epoch, :), A, Tcorr(epoch), Pcorr(epoch), X]  = ...
+            PVT_recLS(pr, sats, TOW(epoch), eph, iono, Nit, PVT0, enab_corr);
+    else
+        %--     Compute the PVT solution at the next epoch
+        [PVT(epoch, :), A, Tcorr(epoch), Pcorr(epoch), X, mask_sats(epoch)]  = ...
+            PVT_recWLS(pr, sats, TOW(epoch), eph, iono, Nit, PVT0, enab_corr, threshold);
+    end
     
     G{epoch}          = inv(A'*A);      % Geometry matrix computation
     
@@ -142,32 +153,34 @@ if Nepoch > 1   % Plots for various epochs
     legend('X error', 'Y error', 'Z error');
     xlabel('Time of the Week (s)');
     ylabel('Error for each coordinate (m)');
-    title(sprintf('Evolution of the errors in the different axes (%s)', const));
-    filename = sprintf('Capt/sing/%s/err_XYZ_%u_%u.jpg', const, Nepoch, enab_corr);
+    title(sprintf('Evolution of the errors in the different axes (%s, alpha = %u°)', const, thres_deg));
+    filename = sprintf('Capt/WLS/%s/err_XYZ_%u_%u_%u.jpg', const, Nepoch, thres_deg,enab_corr);
     saveas(fig, filename);
     %
     % -- RMS evolution 
     fig = figure('DefaultAxesFontSize', 12); plot(TOW, rms);
     xlabel('Time of the Week (s)');
     ylabel('Root Mean Square error (m)');
-    title(sprintf('RMS evolution (%s)', const));
-    filename = sprintf('Capt/sing/%s/rms_%u_%u.jpg', const, Nepoch, enab_corr);
+    title(sprintf('RMS evolution (%s, alpha = %u°)', const, thres_deg));
+    filename = sprintf('Capt/WLS/%s/rms_%u_%u_%u.jpg', const, Nepoch, thres_deg,enab_corr);
     saveas(fig, filename);
     %
     % -- Error in time
     fig = figure('DefaultAxesFontSize', 12); plot(TOW, t_err);
     xlabel('Time of the Week (s)');
     ylabel('Error in time (s)');
-    title(sprintf('Evolution of the bias in time (%s)', const));
-    filename = sprintf('Capt/sing/%s/tbias_%u._%u.jpg', const, Nepoch, enab_corr);
+    title(sprintf('Evolution of the bias in time (%s, alpha = %u°)', const, thres_deg));
+    filename = sprintf('Capt/WLS/%s/tbias_%u._%u_%u.jpg', const, Nepoch, thres_deg,enab_corr);
     saveas(fig, filename);
     %
     % -- # satellites in view
     fig = figure('DefaultAxesFontSize', 12); plot(TOW, Nsat);
-    xlabel('Time of the Week (s)');
+    hold on; plot(TOW, Nsat - mask_sats);
+    legend('In view', 'Used');
     ylabel('Number of satellites');
-    title(sprintf('Evolution of number of satellites in view (%s)', const));
-    filename = sprintf('Capt/sing/%s/nsat_%u_%u.jpg', const, Nepoch, enab_corr);
+    xlabel('Time of the Week (s)');
+    title(sprintf('Evolution of number of satellites (%s, alpha = %u°)', const, thres_deg));
+    filename = sprintf('Capt/WLS/%s/nsat_%u_%u_%u.jpg', const, Nepoch, thres_deg,enab_corr);
     saveas(fig, filename);
     %
     % -- RMS evolution & # sal¡tellites
@@ -176,11 +189,11 @@ if Nepoch > 1   % Plots for various epochs
     plot(TOW, rms);
     ylabel('Root Mean Square error (m)');
     yyaxis right;
-    plot(TOW, Nsat);
-    ylabel('Number of satellites');
+    plot(TOW, Nsat - mask_sats);
+    ylabel('Satellites used');
     xlabel('Time of the Week (s)');
-    title(sprintf('RMS evolution (%s)', const));
-    filename = sprintf('Capt/sing/%s/rms-nsat_%u_%u.jpg', const, Nepoch, enab_corr);
+    title(sprintf('RMS evolution (%s, alpha = %u°)', const, thres_deg));
+    filename = sprintf('Capt/WLS/%s/rms-nsat_%u_%u_%u.jpg', const, Nepoch, thres_deg,enab_corr);
     saveas(fig, filename);
     %
     % -- GDOP evolution & # sal¡tellites
@@ -189,11 +202,11 @@ if Nepoch > 1   % Plots for various epochs
     plot(TOW, GDOP);
     ylabel('GDOP');
     yyaxis right;
-    plot(TOW, Nsat);
-    ylabel('Number of satellites');
+    plot(TOW, Nsat - mask_sats);
+    ylabel('Satellites used');
     xlabel('Time of the Week (s)');
-    title(sprintf('GDOP evolution (%s)', const));
-    filename = sprintf('Capt/sing/%s/gdop-nsat_%u_%u.jpg', const, Nepoch, enab_corr);
+    title(sprintf('GDOP evolution (%s, alpha = %u°)', const, thres_deg));
+    filename = sprintf('Capt/WLS/%s/gdop-nsat_%u_%u_%u.jpg', const, Nepoch, thres_deg,enab_corr);
     saveas(fig, filename);
     %
     % -- PDOP evolution & # sal¡tellites
@@ -202,11 +215,11 @@ if Nepoch > 1   % Plots for various epochs
     plot(TOW, PDOP);
     ylabel('PDOP');
     yyaxis right;
-    plot(TOW, Nsat);
-    ylabel('Number of satellites');
+    plot(TOW, Nsat - mask_sats);
+    ylabel('Satellites used');
     xlabel('Time of the Week (s)');
-    title(sprintf('PDOP evolution (%s)', const));
-    filename = sprintf('Capt/sing/%s/pdop-nsat_%u_%u.jpg', const, Nepoch, enab_corr);
+    title(sprintf('PDOP evolution (%s, alpha = %u°)', const, thres_deg));
+    filename = sprintf('Capt/WLS/%s/pdop-nsat_%u_%u_%u.jpg', const, Nepoch, thres_deg,enab_corr);
     saveas(fig, filename);
     %
     % -- Time & Propagation corrections evolution
@@ -218,7 +231,7 @@ if Nepoch > 1   % Plots for various epochs
     plot(TOW, Pcorr);
     ylabel('Propagation corrections (m)');
     xlabel('Time of the Week (s)');
-    title(sprintf('Time & Propagation corrections evolution (%s)', const));
-    filename = sprintf('Capt/sing/%s/terr-perr_%u_%u.jpg', const, Nepoch, enab_corr);
+    title(sprintf('Time & Propagation corrections evolution (%s, alpha = %u°)', const, thres_deg));
+    filename = sprintf('Capt/WLS/%s/terr-perr_%u_%u_%u.jpg', const, Nepoch, thres_deg,enab_corr);
     saveas(fig, filename);
 end

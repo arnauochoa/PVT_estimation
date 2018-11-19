@@ -24,7 +24,7 @@ NavFile     =   ["RINEX/BCLN00ESP_R_20182870000_01D_GN.rnx", "RINEX/BCLN00ESP_R_
 %--     Observation RINEX file
 ObsFile     =   "RINEX/BCLN00ESP_R_20182870000_01D_30S_MO.rnx";
 %--     Number of epochs to be analyzed (max. 2880)
-Nepoch      =   1000;                
+Nepoch      =   1;                
 %--     Number of unknowns of the PVT solution
 Nsol        =   5;                  
 %--     Number of iterations used to obtain the PVT solution
@@ -80,7 +80,8 @@ end
 for  epoch = 1:Nepoch
     %--     Compute the PVT solution at the next epoch
         [PVT(epoch, :), A, Tcorr(epoch), Pcorr(epoch)]  = ...
-            MC_PVT_recLS(pr_arr{epoch}, sats_arr{epoch}, TOW(epoch), eph, iono, Nit, PVT0, const_arr{epoch}, const, enab_corr);
+            MC_PVT_recLS(pr_arr{epoch}, sats_arr{epoch}, TOW(epoch), eph, ...
+            iono, Nit, PVT0, const_arr{epoch}, const, enab_corr);
         
         G           = inv(A'*A);      % Geometry matrix computation
 
@@ -98,12 +99,12 @@ end
 fprintf(' ==== RESULTS ==== \n')
 Nmov            =   5;
 
-pos_mean        =   nanmean(PVT(:,1:3));
+pos_mean        =   nanmean(PVT(:,1:3), 1);
 posllh_mean     =   rad2deg(xyz2llh(pos_mean));
 t_err           =   PVT(:,4)/c;
 t_err_mean      =   mean(t_err);
-mu_mov          =   movmean(PVT(:,1:3),[Nmov-1 0],1);
-spread          =   nanstd(PVT(:,1:3));
+mu_mov          =   movmean(PVT(:,1:3),[Nmov-1 0], 1);
+spread          =   nanstd(PVT(:,1:3), 0, 1);
 p_err           =   sqrt((PVTr(1:3) - PVT(:, 1:3)).^2);
 p_err_mov       =   PVTr(1:3) - mu_mov;
 rms             =   ((PVTr(1) - PVT(:,1)).^2 + (PVTr(2) - PVT(:,2)).^2 + (PVTr(3) - PVT(:,3)).^2).^0.5;
@@ -115,92 +116,99 @@ fprintf('\nLat.: %12.3fº   Long.: %12.3fº   Height: %12.3f m\n', posllh_mean(1
 fprintf('\nMean time error as computed from %2.0f epochs: %G seconds\n', Nepoch, t_err_mean);
 fprintf('\nstd (m) of each position coordinate:');
 fprintf('\nX: %2.2f Y: %2.2f Z:%2.2f\n', spread(1), spread(2), spread(3));
+if Nepoch==1    % Print error position when there's only one epoch
+    fprintf('\nError in position as computed from 1 epoch:');
+    fprintf('\nX: %2.2f m Y: %2.2f m Z:%2.2f m \n', p_err(1), p_err(2), p_err(3));
+end
 % -------------------------------------------------------------------------
-% -- Errors (RMS) in X-Y-Z
-fig = figure('DefaultAxesFontSize', 12); plot(TOW, p_err);
-legend('X error', 'Y error', 'Z error');
-xlabel('Time of the Week (s)');
-ylabel('Error for each coordinate (m)');
-title(sprintf('Evolution of the errors in the different axes (Multiconst)'));
-filename = sprintf('Capt/mult_2/err_XYZ_%u.jpg', Nepoch);
-saveas(fig, filename);
-%
-% -- RMS evolution 
-fig = figure('DefaultAxesFontSize', 12); plot(TOW, rms);
-xlabel('Time of the Week (s)');
-ylabel('Root Mean Square error (m)');
-title(sprintf('RMS evolution (Multiconst)'));
-filename = sprintf('Capt/mult_2/rms_%u_%u.jpg', Nepoch, enab_corr);
-saveas(fig, filename);
-%
-% -- Error in time
-fig = figure('DefaultAxesFontSize', 12); plot(TOW, t_err);
-xlabel('Time of the Week (s)');
-ylabel('Error in time (s)');
-title(sprintf('Evolution of the bias in time (Multiconst)'));
-filename = sprintf('Capt/mult_2/tbias_%u_%u.jpg', Nepoch, enab_corr);
-saveas(fig, filename);
-%
-% -- # satellites in view
-fig = figure('DefaultAxesFontSize', 12); plot(TOW, Nsat);
-legend(const);
-xlabel('Time of the Week (s)');
-ylabel('Number of satellites');
-title(sprintf('Evolution of number of satellites in view (Multiconst)'));
-filename = sprintf('Capt/mult_2/nsat_%u_%u.jpg', Nepoch, enab_corr);
-saveas(fig, filename);
-%
-% -- RMS evolution & # sal¡tellites
-fig = figure('DefaultAxesFontSize', 12);
-yyaxis left;
-plot(TOW, rms);
-ylabel('Root Mean Square error (m)');
-yyaxis right;
-plot(TOW, Nsat);
-legend(const);
-ylabel('Number of satellites');
-xlabel('Time of the Week (s)');
-title(sprintf('RMS evolution (Multiconst)'));
-filename = sprintf('Capt/mult_2/rms-nsat_%u._%u.jpg', Nepoch, enab_corr);
-saveas(fig, filename);
-%
-% -- GDOP evolution & # sal¡tellites
-fig = figure('DefaultAxesFontSize', 12); 
-yyaxis left;
-plot(TOW, GDOP);
-ylabel('GDOP');
-yyaxis right;
-plot(TOW, Nsat);
-ylabel('Number of satellites');
-xlabel('Time of the Week (s)');
-title(sprintf('GDOP evolution (Multiconst)'));
-filename = sprintf('Capt/mult_2/gdop-nsat_%u_%u.jpg', Nepoch, enab_corr);
-saveas(fig, filename);
-%
-% -- PDOP evolution & # sal¡tellites
-fig = figure('DefaultAxesFontSize', 12); 
-yyaxis left;
-plot(TOW, PDOP);
-ylabel('PDOP');
-yyaxis right;
-plot(TOW, Nsat);
-ylabel('Number of satellites');
-xlabel('Time of the Week (s)');
-title(sprintf('PDOP evolution (Multiconst)'));
-filename = sprintf('Capt/mult_2/pdop-nsat_%u_%u.jpg', Nepoch, enab_corr);
-saveas(fig, filename);
-%
-% -- Time & Propagation corrections evolution
-fig = figure('DefaultAxesFontSize', 12);
-yyaxis left;
-plot(TOW, Tcorr);
-ylabel('Time corrections (s)');
-yyaxis right;
-plot(TOW, Pcorr);
-ylabel('Propagation corrections (m)');
-xlabel('Time of the Week (s)');
-title(sprintf('Time & Propagation corrections evolution (Multiconst)'));
-filename = sprintf('Capt/mult_2/tcorr-pcorr_%u_%u.jpg', Nepoch, enab_corr);
-saveas(fig, filename);
 
 
+if Nepoch > 1   % Plot evolutions for all epochs
+    % -- Errors (RMS) in X-Y-Z
+    fig = figure('DefaultAxesFontSize', 12); plot(TOW, p_err);
+    legend('X error', 'Y error', 'Z error');
+    xlabel('Time of the Week (s)');
+    ylabel('Error for each coordinate (m)');
+    title(sprintf('Evolution of the errors in the different axes (Multiconst)'));
+    filename = sprintf('Capt/mult_2/err_XYZ_%u.jpg', Nepoch);
+    saveas(fig, filename);
+    %
+    % -- RMS evolution 
+    fig = figure('DefaultAxesFontSize', 12); plot(TOW, rms);
+    xlabel('Time of the Week (s)');
+    ylabel('Root Mean Square error (m)');
+    title(sprintf('RMS evolution (Multiconst)'));
+    filename = sprintf('Capt/mult_2/rms_%u_%u.jpg', Nepoch, enab_corr);
+    saveas(fig, filename);
+    %
+    % -- Error in time
+    fig = figure('DefaultAxesFontSize', 12); plot(TOW, t_err);
+    xlabel('Time of the Week (s)');
+    ylabel('Error in time (s)');
+    title(sprintf('Evolution of the bias in time (Multiconst)'));
+    filename = sprintf('Capt/mult_2/tbias_%u_%u.jpg', Nepoch, enab_corr);
+    saveas(fig, filename);
+    %
+    % -- # satellites in view
+    fig = figure('DefaultAxesFontSize', 12); plot(TOW, Nsat);
+    legend(const);
+    xlabel('Time of the Week (s)');
+    ylabel('Number of satellites');
+    title(sprintf('Evolution of number of satellites in view (Multiconst)'));
+    filename = sprintf('Capt/mult_2/nsat_%u_%u.jpg', Nepoch, enab_corr);
+    saveas(fig, filename);
+    %
+    % -- RMS evolution & # sal¡tellites
+    fig = figure('DefaultAxesFontSize', 12);
+    yyaxis left;
+    plot(TOW, rms);
+    ylabel('Root Mean Square error (m)');
+    yyaxis right;
+    plot(TOW, Nsat);
+    legend(const);
+    ylabel('Number of satellites');
+    xlabel('Time of the Week (s)');
+    title(sprintf('RMS evolution (Multiconst)'));
+    filename = sprintf('Capt/mult_2/rms-nsat_%u._%u.jpg', Nepoch, enab_corr);
+    saveas(fig, filename);
+    %
+    % -- GDOP evolution & # sal¡tellites
+    fig = figure('DefaultAxesFontSize', 12); 
+    yyaxis left;
+    plot(TOW, GDOP);
+    ylabel('GDOP');
+    yyaxis right;
+    plot(TOW, Nsat);
+    ylabel('Number of satellites');
+    xlabel('Time of the Week (s)');
+    title(sprintf('GDOP evolution (Multiconst)'));
+    filename = sprintf('Capt/mult_2/gdop-nsat_%u_%u.jpg', Nepoch, enab_corr);
+    saveas(fig, filename);
+    %
+    % -- PDOP evolution & # sal¡tellites
+    fig = figure('DefaultAxesFontSize', 12); 
+    yyaxis left;
+    plot(TOW, PDOP);
+    ylabel('PDOP');
+    yyaxis right;
+    plot(TOW, Nsat);
+    ylabel('Number of satellites');
+    xlabel('Time of the Week (s)');
+    title(sprintf('PDOP evolution (Multiconst)'));
+    filename = sprintf('Capt/mult_2/pdop-nsat_%u_%u.jpg', Nepoch, enab_corr);
+    saveas(fig, filename);
+    %
+    % -- Time & Propagation corrections evolution
+    fig = figure('DefaultAxesFontSize', 12);
+    yyaxis left;
+    plot(TOW, Tcorr);
+    ylabel('Time corrections (s)');
+    yyaxis right;
+    plot(TOW, Pcorr);
+    ylabel('Propagation corrections (m)');
+    xlabel('Time of the Week (s)');
+    title(sprintf('Time & Propagation corrections evolution (Multiconst)'));
+    filename = sprintf('Capt/mult_2/tcorr-pcorr_%u_%u.jpg', Nepoch, enab_corr);
+    saveas(fig, filename);
+end
+    

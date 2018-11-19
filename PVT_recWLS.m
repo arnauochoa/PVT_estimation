@@ -1,4 +1,4 @@
-function    [PVT, A, tcorr, Pcorr]  =   PVT_recLS(pr, svn, TOW, eph, iono, Nit, PVT0)
+function    [PVT, A, tcorr, Pcorr, X, mask_sats]  =   PVT_recWLS(pr, svn, TOW, eph, iono, Nit, PVT0, enab_corr, threshold)
 % PVT_recLS:    Computation of the receiver position at time TOW from  
 %               pseudoranges (pr) and ephemerides information (eph). 
 %               Implementation using the iterative Least-Squares principle 
@@ -7,27 +7,29 @@ function    [PVT, A, tcorr, Pcorr]  =   PVT_recLS(pr, svn, TOW, eph, iono, Nit, 
 %               to the pseudoranges given by the input (pr).
 %               
 % Input:            
-%           pr:     1xNsat vector with the observed pseudoranges at time 
-%                   TOW for the Nsat satellites with ID given by svn
-%           svn:    1xNsat vector containing the ID of the satellites from
-%                   which the pseudoranges in pr has been measured.
-%           TOW:    TOW of the epoch that the pseudoranges in pr has been 
-%                   measured
-%           eph:    Matrix with the ephemerides information needed to
-%                   obtain pseudorange corrections and the coordinates of
-%                   the satellites
-%           iono:   Ionosphere parameters to get ionosphere corrections
-%           Nit:    # of iterations applied in the iterative LS algorithm
-%                   used to obtain the PVT solution
-%           PVT0:   Initial guess of the user position used for the
-%                   linearization process of the navigaiton equations
+%           pr:         1xNsat vector with the observed pseudoranges at time 
+%                       TOW for the Nsat satellites with ID given by svn
+%           svn:        1xNsat vector containing the ID of the satellites from
+%                       which the pseudoranges in pr has been measured.
+%           TOW:        TOW of the epoch that the pseudoranges in pr has been 
+%                       measured
+%           eph:        Matrix with the ephemerides information needed to
+%                       obtain pseudorange corrections and the coordinates of
+%                       the satellites
+%           iono:       Ionosphere parameters to get ionosphere corrections
+%           Nit:        # of iterations applied in the iterative LS algorithm
+%                       used to obtain the PVT solution
+%           PVT0:       Initial guess of the user position used for the
+%                       linearization process of the navigaiton equations
+%           enab_corr:  Flag for enable/disable corrections
+%           threshold:  Threshold angle for rejecting satellites
 %
-% Output:   PVT:    Nsolx1 vector with the estimated PVT solution 
-%           A:      NsatxNsol matrix with the geometry information. This is
-%                   the geometry matrix studied in lectures: "PVT = A*pr"
-%           tcorr:  Satellite clock correction in [sec.]
-%           Pcorr:  Corrections in [meters] for the propagation effects. 
-%                   Mainly ionosphere and troposphere corrections
+% Output:   PVT:        Nsolx1 vector with the estimated PVT solution 
+%           A:          NsatxNsol matrix with the geometry information. This is
+%                       the geometry matrix studied in lectures: "PVT = A*pr"
+%           tcorr:      Satellite clock correction in [sec.]
+%           Pcorr:      Corrections in [meters] for the propagation effects. 
+%                       Mainly ionosphere and troposphere corrections
 %                   
 %
     %-  Initialize parameters
@@ -36,7 +38,19 @@ function    [PVT, A, tcorr, Pcorr]  =   PVT_recLS(pr, svn, TOW, eph, iono, Nit, 
     tcorr   =   zeros(Nsat, 1);  %   Satellite clock corrections    
     Pcorr   =   zeros(Nsat, 1);  %   Propagation effects corrections  
     X       =   zeros(3, Nsat);  %   Satellite coordinates
-       
+    
+    %-  Reject satellites under the threshold elevation angle
+    mask    =   [];
+    for sat = 1:Nsat
+        [X(:, sat), tcorr(sat)]  =   getCtrl_corr(eph, svn(sat), TOW, pr(sat));
+        alpha   =   elevation_angle(PVT0(1:3)', X(:, sat));
+        if alpha < threshold, mask = [mask, sat]; end
+    end
+    mask_sats   =   length(mask);
+    pr(mask)    =   [];             % Deletes elemets of pr given by the indexes in mask
+    svn(mask)   =   [];             % Deletes elemets of svn given by the indexes in mask
+    Nsat        =   length(pr);     %   Number of satellites update
+    
     %
     %-  Iterative LS to compute the PVT solution
     for iter = 1:Nit
@@ -68,11 +82,14 @@ function    [PVT, A, tcorr, Pcorr]  =   PVT_recLS(pr, svn, TOW, eph, iono, Nit, 
             % TODO: falta añadir efecto relativista
 
             %--     Get corrected pseudorange (rho_c = rho - cor)
-            if appl
-            corr          =   Pcorr + c * tcorr(sat);            %   Total correction factor in meters (TBD)
-            % corr = 0;
+            if enab_corr         % If corrections are enabled
+                corr          =   Pcorr + c * tcorr(sat);            %   Total correction factor in meters (TBD)
+            else
+                corr = 0;
+            end
             pr_c          =   pr(sat) + corr;   %   Corrected pseudorange
-    
+            % pr_if = iono_corr(pr_c1, pr_c2);
+
             if (~isnan(pr_c))    % Fill as long as there is C1 measurement,
                                  % otherwise discard the measurement.
                 %--     Fill the measurement vector (rhoc_i - d0_i)
