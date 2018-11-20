@@ -15,7 +15,7 @@ addpath 'Observations';
 %-  Setting Parameters
 %--     CONSTELLATION
 %---        Satellite constellation to be used for the PVT computation
-const       =   'GPS';
+const       =   'GAL';
 %--     SMOOTHING
 %---        Smoothing window
 window      =   5;
@@ -24,12 +24,12 @@ window      =   5;
 enab_corr   =   true;
 %--     MASKING
 %---        Threshold angle defined in deg
-thres_deg   =   30;
+thres_deg   =   10;
 %---        Threshold angle defined in rad
 threshold   =   deg2rad(thres_deg);
 %--     EPOCHS
 %---        Number of epochs to be analyzed (max. 2880)
-Nepoch      =   200;
+Nepoch      =   500;
 %--     FILES
 %---        Navigation RINEX file
 if strcmp(const, 'GPS'), NavFile = 'RINEX/BCLN00ESP_R_20182870000_01D_GN.rnx'; end
@@ -73,6 +73,7 @@ TOW         =   nan(Nepoch,1);          %   Time Of the Week (TOW)
 G           =   cell(1, Nepoch);        %   Array of geometry matrixes as cells
 pos_llh     =   nan(Nepoch, 3);         %   Position in Latitude, Longitude and Height
 mask_sats   =   zeros(Nepoch, 1);       %   Number masked satellites for every epoch
+sats_el     =   cell(Nepoch, 1);         %   Satellites elevations for every epoch
 
 
 %-  Sequentially read the Observation file and compute the PVT solution
@@ -95,7 +96,7 @@ for epoch = 1:Nepoch
             PVT_recLS(pr, sats, TOW(epoch), eph, iono, Nit, PVT0, enab_corr);
     else
         %--     Compute the PVT solution at the next epoch
-        [PVT(epoch, :), A, Tcorr(epoch), Pcorr(epoch), X, mask_sats(epoch)]  = ...
+        [PVT(epoch, :), A, Tcorr(epoch), Pcorr(epoch), X, mask_sats(epoch), sats_el{epoch}]  = ...
             PVT_recWLS(pr, sats, TOW(epoch), eph, iono, Nit, PVT0, enab_corr, threshold);
     end
     
@@ -166,14 +167,33 @@ end
 
 
 % ----------------------------- PLOTS -------------------------------------
-if Nepoch==1    % Plots for one epoch
-%     min_x = min(X(1,:)); max_x = max(X(1,:));
-%     min_y = min(X(2,:)); max_y = max(X(2,:));
-%     min_z = min(X(3,:)); max_z = max(X(3,:));
-    fig = figure('DefaultAxesFontSize', 12);
-    plot3(X(1, :), X(2, :), X(3, :)); 
-end
+% Re      =   6371000; % m
+% [x,y,z] =   sphere(100);
+% fig = figure('DefaultAxesFontSize', 12);
+% plot3(X(1, :), X(2, :), X(3, :), 'rx');
+% hold on;    plot3(PVT(Nepoch,1), PVT(Nepoch,1), PVT(Nepoch,1), 'bx');
+% hold on;    surf(x*Re, y*Re, z*Re);
+% rotate3d on;
+% title('Satellites position and PVT from last epoch');
+
+
+
 if Nepoch > 1   % Plots for various epochs
+    fig = figure('DefaultAxesFontSize', 12);
+    plot(TOW, thres_deg*ones(Nepoch, 1), 'LineWidth', 1); hold on;
+    plot(TOW, zeros(Nepoch, 1), 'LineWidth', 1); hold on;
+    for epoch=1:Nepoch
+        a = TOW(epoch)*ones(length(sats_el{epoch}), 1);
+        b = rad2deg(sats_el{epoch});
+        plot(a, b, 'r.', 'DisplayName','Satellites'); hold on;
+    end
+    hold off;
+    xlabel('Time of the Week (s)');
+    ylabel('Elevation angle (°)');
+    title(sprintf('Elevation angles (%s)', const));
+    filename = sprintf('Capt/WLS/%s/elev_%u_%u_c%u.jpg', const, Nepoch, thres_deg, enab_corr);
+    saveas(fig, filename);
+    
     % -- Errors (RMS) in X-Y-Z
     fig = figure('DefaultAxesFontSize', 12); plot(TOW, p_err);
     legend('X error', 'Y error', 'Z error');

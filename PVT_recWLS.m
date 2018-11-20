@@ -1,4 +1,4 @@
-function    [PVT, A, tcorr, Pcorr, X, mask_sats]  =   PVT_recWLS(pr, svn, TOW, eph, iono, Nit, PVT0, enab_corr, threshold)
+function    [PVT, A, tcorr, Pcorr, X, mask_sats, sats_el]  =   PVT_recWLS(pr, svn, TOW, eph, iono, Nit, PVT0, enab_corr, threshold)
 % PVT_recLS:    Computation of the receiver position at time TOW from  
 %               pseudoranges (pr) and ephemerides information (eph). 
 %               Implementation using the iterative Least-Squares principle 
@@ -38,12 +38,14 @@ function    [PVT, A, tcorr, Pcorr, X, mask_sats]  =   PVT_recWLS(pr, svn, TOW, e
     tcorr   =   zeros(Nsat, 1);  %   Satellite clock corrections    
     Pcorr   =   zeros(Nsat, 1);  %   Propagation effects corrections  
     X       =   zeros(3, Nsat);  %   Satellite coordinates
+    sats_el =   zeros(Nsat, 1);  %   Satellites elevations (rad)
     
     %-  Reject satellites under the threshold elevation angle
     mask    =   [];
     for sat = 1:Nsat
         [X(:, sat), tcorr(sat)]  =   getCtrl_corr(eph, svn(sat), TOW, pr(sat));
-        alpha   =   elevation_angle(PVT0(1:3)', X(:, sat));
+        alpha           =   elevation_angle(PVT0(1:3)', X(:, sat));
+        sats_el(sat)    = alpha;
         if alpha < threshold, mask = [mask, sat]; end
     end
     mask_sats   =   length(mask);
