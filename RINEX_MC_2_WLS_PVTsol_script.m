@@ -26,7 +26,7 @@ window      =   10;
 enab_corr   =   true;
 %--     MASKING
 %---        Threshold angle defined in deg
-thres_deg   =   20;
+thres_deg   =   10;
 %---        Threshold angle defined in rad
 threshold   =   deg2rad(thres_deg);
 %--     EPOCHS
@@ -72,6 +72,8 @@ TOW         =   nan(Nepoch,1);              %   Time Of the Week (TOW)
 % G           =   cell(1, Nepoch);          %   Array of geometry matrixes as cells
 pos_llh     =   nan(Nepoch, 3, Nconst);     %   Position in Latitude, Longitude and Height
 mask_sats   =   zeros(Nepoch, 1);           %   Number masked satellites for every epoch
+sats_el     =   cell(Nepoch, 1);        %   Satellites elevations for every epoch
+
 
 
 %- Obtain pr and sats vectors for each constellation and epoch
@@ -99,7 +101,7 @@ for  epoch = 1:Nepoch
                 MC_PVT_recLS(pr_arr{epoch}, sats_arr{epoch}, TOW(epoch), eph, ...
                 iono, Nit, PVT0, const_arr{epoch}, const, enab_corr);
         else
-            [PVT(epoch, :), A, Tcorr(epoch), Pcorr(epoch), mask_sats(epoch)]  = ...
+            [PVT(epoch, :), A, Tcorr(epoch), Pcorr(epoch), mask_sats(epoch), sats_el{epoch}]  = ...
                 MC_PVT_recWLS(pr_arr{epoch}, sats_arr{epoch}, TOW(epoch), eph, ...
                 iono, Nit, PVT0, const_arr{epoch}, const, enab_corr, threshold);
         end
@@ -131,6 +133,8 @@ pos_mean        =   nanmean(PVT(:,1:3), 1);
 posllh_mean     =   rad2deg(xyz2llh(pos_mean));
 t_err           =   PVT(:,4)/c;
 t_err_mean      =   mean(t_err);
+t_dif_err       =   PVT(:,5)/c;
+t_dif_err_mean  =   mean(t_dif_err);
 mu_mov          =   movmean(PVT(:,1:3),[Nmov-1 0], 1);
 spread          =   nanstd(PVT(:,1:3), 0, 1);
 p_err           =   sqrt((PVTr(1:3) - PVT(:, 1:3)).^2);
@@ -161,6 +165,21 @@ end
 
 % ----------------------------- PLOTS -------------------------------------
 if Nepoch > 1   % Plot evolutions for all epochs
+    fig = figure('DefaultAxesFontSize', 12);
+    plot(TOW, thres_deg*ones(Nepoch, 1), 'LineWidth', 1); hold on;
+    plot(TOW, zeros(Nepoch, 1), 'LineWidth', 1); hold on;
+    for epoch=1:Nepoch
+        a = TOW(epoch)*ones(length(sats_el{epoch}), 1);
+        b = rad2deg(sats_el{epoch});
+        plot(a, b, 'r.', 'DisplayName','Satellites'); hold on;
+    end
+    hold off;
+    xlabel('Time of the Week (s)');
+    ylabel('Elevation angle (°)');
+    title(sprintf('Elevation angles (%s)', const));
+    filename = sprintf('Capt/WLS/mult_2/elev_%u_%u_c%u.jpg', Nepoch, thres_deg, enab_corr);
+    saveas(fig, filename);
+    %
     % -- Errors (RMS) in X-Y-Z
     fig = figure('DefaultAxesFontSize', 12); plot(TOW, p_err);
     legend('X error', 'Y error', 'Z error');
@@ -201,6 +220,14 @@ if Nepoch > 1   % Plot evolutions for all epochs
     ylabel('Error in time (s)');
     title(sprintf('Evolution of the bias in time (Multiconst, alpha = %u°)\n', thres_deg));
     filename = sprintf('Capt/WLS/mult_2/tbias_%u_%u_%u.jpg', Nepoch, thres_deg, enab_corr);
+    saveas(fig, filename);
+    %
+    % -- Time difference between constellations
+    fig = figure('DefaultAxesFontSize', 12); plot(TOW, t_dif_err);
+    xlabel('Time of the Week (s)');
+    ylabel('Error in time (s)');
+    title(sprintf('Evolution of the time difference between %s and %s \n(Multiconst, alpha = %u°)', const(1), const(2), thres_deg));
+    filename = sprintf('Capt/WLS/mult_2/t_dif_bias_%u_%u_%u.jpg', Nepoch, thres_deg, enab_corr);
     saveas(fig, filename);
     %
     % -- Error in time SMOOTHED

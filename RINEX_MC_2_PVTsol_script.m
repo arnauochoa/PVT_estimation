@@ -24,7 +24,7 @@ NavFile     =   ["RINEX/BCLN00ESP_R_20182870000_01D_GN.rnx", "RINEX/BCLN00ESP_R_
 %--     Observation RINEX file
 ObsFile     =   "RINEX/BCLN00ESP_R_20182870000_01D_30S_MO.rnx";
 %--     Number of epochs to be analyzed (max. 2880)
-Nepoch      =   1;                
+Nepoch      =   1000;                
 %--     Number of unknowns of the PVT solution
 Nsol        =   5;                  
 %--     Number of iterations used to obtain the PVT solution
@@ -103,6 +103,8 @@ pos_mean        =   nanmean(PVT(:,1:3), 1);
 posllh_mean     =   rad2deg(xyz2llh(pos_mean));
 t_err           =   PVT(:,4)/c;
 t_err_mean      =   mean(t_err);
+t_dif_err       =   PVT(:,5)/c;
+t_dif_err_mean  =   mean(t_dif_err);
 mu_mov          =   movmean(PVT(:,1:3),[Nmov-1 0], 1);
 spread          =   nanstd(PVT(:,1:3), 0, 1);
 p_err           =   sqrt((PVTr(1:3) - PVT(:, 1:3)).^2);
@@ -147,6 +149,14 @@ if Nepoch > 1   % Plot evolutions for all epochs
     ylabel('Error in time (s)');
     title(sprintf('Evolution of the bias in time (Multiconst)\n'));
     filename = sprintf('Capt/mult_2/tbias_%u_%u.jpg', Nepoch, enab_corr);
+    saveas(fig, filename);
+    %
+    % -- Time difference between constellations
+    fig = figure('DefaultAxesFontSize', 12); plot(TOW, t_dif_err);
+    xlabel('Time of the Week (s)');
+    ylabel('Error in time (s)');
+    title(sprintf('Evolution of the time difference between %s and %s (Multiconst)\n', const(1), const(2)));
+    filename = sprintf('Capt/mult_2/t_dif_bias_%u_%u.jpg', Nepoch, enab_corr);
     saveas(fig, filename);
     %
     % -- # satellites in view

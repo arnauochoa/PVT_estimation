@@ -20,7 +20,18 @@ function [corr] = sat_clock_error_correction(time, Eph)
 % Copyright (C) 2009-2014 Mirko Reguzzoni, Eugenio Realini
 %
 %----------------------------------------------------------------------------------------------
+%if GLONASS
+if length(Eph) > 22
+    if (strcmp(char(Eph(31)),'R'))
 
+        TauN     = Eph(2);
+        GammaN   = Eph(3);
+        ref_toe  = Eph(32);
+
+        dt = check_t(time - ref_toe);
+        corr = -TauN + GammaN*dt;
+    end
+else %if GPS/Galileo/QZSS/BeiDou
     af2 = Eph(2);
     af0 = Eph(19);
     af1 = Eph(20);

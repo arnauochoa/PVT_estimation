@@ -13,13 +13,16 @@ addpath 'Misc';
 addpath 'Observations';
 
 %-  Setting Parameters
+%--     Enable/disable plots
+enab_plots   =   false;
 %--     Satellite constellation to be used for the PVT computation
-const       =   'GPS';
+const       =   'GLO';
 %--     Enable/disable corrections
 enab_corr   =   true;
 %--     Navigation RINEX file
 if strcmp(const, 'GPS'), NavFile = 'RINEX/BCLN00ESP_R_20182870000_01D_GN.rnx'; end
 if strcmp(const, 'GAL'), NavFile = 'RINEX/BCLN00ESP_R_20182870000_01D_EN.rnx'; end
+if strcmp(const, 'GLO'), NavFile = 'RINEX/BCLN287A.18G'; end
 %--     Observation RINEX file
 ObsFile     =   'RINEX/BCLN00ESP_R_20182870000_01D_30S_MO.rnx';
 %--     Number of epochs to be analyzed (max. 2880)
@@ -136,7 +139,7 @@ if Nepoch==1    % Plots for one epoch
     fig = figure('DefaultAxesFontSize', 12);
     plot3(X(1, :), X(2, :), X(3, :)); 
 end
-if Nepoch > 1   % Plots for various epochs
+if (Nepoch > 1) && enab_plots  % Plots for various epochs
     % -- Errors (RMS) in X-Y-Z
     fig = figure('DefaultAxesFontSize', 12); plot(TOW, p_err);
     legend('X error', 'Y error', 'Z error');

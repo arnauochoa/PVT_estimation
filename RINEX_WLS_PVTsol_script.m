@@ -15,21 +15,21 @@ addpath 'Observations';
 %-  Setting Parameters
 %--     CONSTELLATION
 %---        Satellite constellation to be used for the PVT computation
-const       =   'GAL';
+const       =   'GPS';
 %--     SMOOTHING
 %---        Smoothing window
-window      =   5;
+window      =   10;
 %--     CORRECTIONS
 %---        Enable/disable corrections
 enab_corr   =   true;
 %--     MASKING
 %---        Threshold angle defined in deg
-thres_deg   =   10;
+thres_deg   =   25;
 %---        Threshold angle defined in rad
 threshold   =   deg2rad(thres_deg);
 %--     EPOCHS
 %---        Number of epochs to be analyzed (max. 2880)
-Nepoch      =   500;
+Nepoch      =   200;
 %--     FILES
 %---        Navigation RINEX file
 if strcmp(const, 'GPS'), NavFile = 'RINEX/BCLN00ESP_R_20182870000_01D_GN.rnx'; end
@@ -73,7 +73,7 @@ TOW         =   nan(Nepoch,1);          %   Time Of the Week (TOW)
 G           =   cell(1, Nepoch);        %   Array of geometry matrixes as cells
 pos_llh     =   nan(Nepoch, 3);         %   Position in Latitude, Longitude and Height
 mask_sats   =   zeros(Nepoch, 1);       %   Number masked satellites for every epoch
-sats_el     =   cell(Nepoch, 1);         %   Satellites elevations for every epoch
+sats_el     =   cell(Nepoch, 1);        %   Satellites elevations for every epoch
 
 
 %-  Sequentially read the Observation file and compute the PVT solution
