@@ -100,7 +100,7 @@ end
 %-  Show results
 
 fprintf(' ==== RESULTS ==== \n')
-Nmov            =   5;
+Nmov            =   20;
 
 pos_mean        =   nanmean(PVT(:,1:3),1);
 posllh_mean     =   rad2deg(xyz2llh(pos_mean));
@@ -144,6 +144,15 @@ if Nepoch > 1   % Plots for various epochs
     ylabel('Error for each coordinate (m)');
     title(sprintf('Evolution of the errors in the different axes (%s)', const));
     filename = sprintf('Capt/sing/%s/err_XYZ_%u_%u.jpg', const, Nepoch, enab_corr);
+    saveas(fig, filename);
+    %
+    % -- Smoothed errors (RMS) in X-Y-Z
+    fig = figure('DefaultAxesFontSize', 12); plot(TOW, p_err);
+    legend('X error', 'Y error', 'Z error');
+    xlabel('Time of the Week (s)');
+    ylabel('Error for each coordinate (m)');
+    title(sprintf('Evolution of the smoothed errors in the different axes (%s)', const));
+    filename = sprintf('Capt/sing/%s/sm_err_XYZ_%u_%u.jpg', const, Nepoch, enab_corr);
     saveas(fig, filename);
     %
     % -- RMS evolution 

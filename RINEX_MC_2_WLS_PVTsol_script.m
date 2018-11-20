@@ -13,22 +13,32 @@ addpath 'Misc';
 addpath 'Observations';
 
 %-  Setting Parameters
-%--     Satellite constellations to be used for the PVT computation
+%--     CONSTELLATION
+%---        Satellite constellations to be used for the PVT computation
 const       =   ["GPS", "GAL"];
-%--     Threshold angle defined in deg
-thres_deg   =   20;
-%--     Threshold angle defined in rad
-threshold   =   deg2rad(thres_deg);
-%--     Enable/disable corrections
-enab_corr   =   true;
-%--     Number of constellations used
+%---        Number of constellations used
 Nconst      =   length(const);
-%--     Navigation RINEX files
+%--     SMOOTHING
+%---        Smoothing window
+window      =   10;
+%--     CORRECTIONS
+%--         Enable/disable corrections
+enab_corr   =   true;
+%--     MASKING
+%---        Threshold angle defined in deg
+thres_deg   =   20;
+%---        Threshold angle defined in rad
+threshold   =   deg2rad(thres_deg);
+%--     EPOCHS
+%---        Number of epochs to be analyzed (max. 2880)
+Nepoch      =   200;
+%--     FILES
+%---        Navigation RINEX files
 NavFile     =   ["RINEX/BCLN00ESP_R_20182870000_01D_GN.rnx", "RINEX/BCLN00ESP_R_20182870000_01D_EN.rnx"];
-%--     Observation RINEX file
-ObsFile     =   "RINEX/BCLN00ESP_R_20182870000_01D_30S_MO.rnx";
-%--     Number of epochs to be analyzed (max. 2880)
-Nepoch      =   200;                
+%---        Observation RINEX file
+ObsFile     =   "RINEX/BCLN00ESP_R_20182870000_01D_30S_MO.rnx";             
+
+%-  Initialization Parameters
 %--     Number of unknowns of the PVT solution
 Nsol        =   5;                  
 %--     Number of iterations used to obtain the PVT solution
@@ -46,8 +56,6 @@ Tcorr       =   zeros(Nepoch, 1);
 %--     Propagation corrections mean for every epoch
 Pcorr       =   zeros(Nepoch, 1);
 
-
-%-  Initialization Parameters
 eph     =   cell(1, Nconst);
 iono    =   cell(1, Nconst);
 for con = 1:Nconst
@@ -56,13 +64,14 @@ for con = 1:Nconst
 end
 
 %
-PVT         =   nan(Nepoch,Nsol);        %   PVT solution for every constellation
+PVT         =   nan(Nepoch,Nsol);           %   PVT solution for every constellation
+PVTs        =   nan(Nepoch,Nsol);           %   Smoothed PVT solution
 GDOP        =   zeros(Nepoch, 1);           %   Gdop
 PDOP        =   zeros(Nepoch, 1);           %   Pdop
-TOW         =   nan(Nepoch,1);             %   Time Of the Week (TOW)
-% G           =   cell(1, Nepoch);              %   Array of geometry matrixes as cells
-pos_llh     =   nan(Nepoch, 3, Nconst);         %   Position in Latitude, Longitude and Height
-mask_sats   =   zeros(Nepoch, 1);       %   Number masked satellites for every epoch
+TOW         =   nan(Nepoch,1);              %   Time Of the Week (TOW)
+% G           =   cell(1, Nepoch);          %   Array of geometry matrixes as cells
+pos_llh     =   nan(Nepoch, 3, Nconst);     %   Position in Latitude, Longitude and Height
+mask_sats   =   zeros(Nepoch, 1);           %   Number masked satellites for every epoch
 
 
 %- Obtain pr and sats vectors for each constellation and epoch
@@ -95,6 +104,12 @@ for  epoch = 1:Nepoch
                 iono, Nit, PVT0, const_arr{epoch}, const, enab_corr, threshold);
         end
         
+        if epoch < window       % If there are NOT enough epochs
+            PVTs(epoch, :) = PVT(epoch, :);
+        else                    % If there are enough epochs
+            PVTs(epoch, :) = mean(PVT((epoch - window + 1) : epoch, :), 1);
+        end
+        
         G           = inv(A'*A);      % Geometry matrix computation
 
         G_diag= diag(G);
@@ -111,6 +126,7 @@ end
 fprintf(' ==== RESULTS ==== \n')
 Nmov            =   5;
 
+%-- Normal PVT
 pos_mean        =   nanmean(PVT(:,1:3), 1);
 posllh_mean     =   rad2deg(xyz2llh(pos_mean));
 t_err           =   PVT(:,4)/c;
@@ -120,6 +136,13 @@ spread          =   nanstd(PVT(:,1:3), 0, 1);
 p_err           =   sqrt((PVTr(1:3) - PVT(:, 1:3)).^2);
 p_err_mov       =   PVTr(1:3) - mu_mov;
 rms             =   ((PVTr(1) - PVT(:,1)).^2 + (PVTr(2) - PVT(:,2)).^2 + (PVTr(3) - PVT(:,3)).^2).^0.5;
+
+%-- Smoothed PVT
+sm_t_err        =   PVTs(:,4)/c;
+sm_t_err_mean   =   mean(sm_t_err);
+sm_spread       =   nanstd(PVTs(:,1:3), 0, 1);
+sm_p_err        =   sqrt((PVTr(1:3) - PVTs(:, 1:3)).^2);
+sm_rms          =   ((PVTr(1) - PVTs(:,1)).^2 + (PVTr(2) - PVTs(:,2)).^2 + (PVTr(3) - PVTs(:,3)).^2).^0.5;
 
 % -------------------------------------------------------------------------
 fprintf('\nMean position as computed from %2.0f epochs:', Nepoch);
@@ -135,6 +158,8 @@ end
 % -------------------------------------------------------------------------
 
 
+
+% ----------------------------- PLOTS -------------------------------------
 if Nepoch > 1   % Plot evolutions for all epochs
     % -- Errors (RMS) in X-Y-Z
     fig = figure('DefaultAxesFontSize', 12); plot(TOW, p_err);
@@ -145,6 +170,15 @@ if Nepoch > 1   % Plot evolutions for all epochs
     filename = sprintf('Capt/WLS/mult_2/err_XYZ_%u_%u_%u.jpg', Nepoch, thres_deg, enab_corr);
     saveas(fig, filename);
     %
+    % -- Errors (RMS) in X-Y-Z SMOOTHED
+    fig = figure('DefaultAxesFontSize', 12); plot(TOW, sm_p_err);
+    legend('X error', 'Y error', 'Z error');
+    xlabel('Time of the Week (s)');
+    ylabel('Error for each coordinate (m)');
+    title(sprintf('Evolution of the smoothed errors in the different axes \n(Multiconst, alpha = %u°, window = %u)', thres_deg, window));
+    filename = sprintf('Capt/WLS/mult_2/sm%u_err_XYZ_%u_%u_c%u.jpg', window, Nepoch, thres_deg, enab_corr);
+    saveas(fig, filename);
+    %
     % -- RMS evolution 
     fig = figure('DefaultAxesFontSize', 12); plot(TOW, rms);
     xlabel('Time of the Week (s)');
@@ -153,12 +187,28 @@ if Nepoch > 1   % Plot evolutions for all epochs
     filename = sprintf('Capt/WLS/mult_2/rms_%u_%u_%u.jpg', Nepoch, thres_deg, enab_corr);
     saveas(fig, filename);
     %
+    % -- RMS evolution SMOOTHED
+    fig = figure('DefaultAxesFontSize', 12); plot(TOW, sm_rms);
+    xlabel('Time of the Week (s)');
+    ylabel('Root Mean Square error (m)');
+    title(sprintf('Smoothed RMS evolution \n(Multiconst, alpha = %u°, window = %u)', thres_deg, window));
+    filename = sprintf('Capt/WLS/mult_2/sm%u_rms_%u_%u_c%u.jpg', window, Nepoch, thres_deg, enab_corr);
+    saveas(fig, filename);
+    %
     % -- Error in time
     fig = figure('DefaultAxesFontSize', 12); plot(TOW, t_err);
     xlabel('Time of the Week (s)');
     ylabel('Error in time (s)');
     title(sprintf('Evolution of the bias in time (Multiconst, alpha = %u°)\n', thres_deg));
     filename = sprintf('Capt/WLS/mult_2/tbias_%u_%u_%u.jpg', Nepoch, thres_deg, enab_corr);
+    saveas(fig, filename);
+    %
+    % -- Error in time SMOOTHED
+    fig = figure('DefaultAxesFontSize', 12); plot(TOW, sm_t_err);
+    xlabel('Time of the Week (s)');
+    ylabel('Error in time (s)');
+    title(sprintf('Evolution of the smoothed bias in time \n(Multiconst, alpha = %u°, window = %u)\n', thres_deg, window));
+    filename = sprintf('Capt/WLS/mult_2/sm%u_tbias_%u_%u_c%u.jpg', window, Nepoch, thres_deg, enab_corr);
     saveas(fig, filename);
     %
     % -- # of satellites in view
